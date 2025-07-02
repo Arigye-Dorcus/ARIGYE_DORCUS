@@ -1,122 +1,76 @@
-# This Python script automates the creation and posting of tweets using:
-
-# AI (OpenAI GPT-4) to generate tweet content
-
-# Twitter API to post automatically
-
-# Scheduling to post at optimal times
-
-# Think of it as a virtual social media manager that creates and shares tech-related tweets 
-
-
-import os
+import tweepy
 import schedule
 import time
+import random
 from datetime import datetime
 from dotenv import load_dotenv
-import tweepy
-from openai import OpenAI
-
-# Load environment variables
+import os
 load_dotenv()
 
-class TwitterAIBot:
-    def __init__(self):
-        # Initialize APIs
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
-        # Twitter API v2 authentication
-        self.twitter_client = tweepy.Client(
-            consumer_key=os.getenv("TWITTER_API_KEY"),
-            consumer_secret=os.getenv("TWITTER_API_SECRET"),
-            access_token=os.getenv("TWITTER_ACCESS_TOKEN"),
-            access_token_secret=os.getenv("TWITTER_ACCESS_SECRET")
-        )
-        
-        # For media uploads (if needed)
-        self.twitter_auth_v1 = tweepy.OAuth1UserHandler(
-            os.getenv("TWITTER_API_KEY"),
-            os.getenv("TWITTER_API_SECRET"),
-            os.getenv("TWITTER_ACCESS_TOKEN"),
-            os.getenv("TWITTER_ACCESS_SECRET")
-        )
-        self.twitter_api_v1 = tweepy.API(self.twitter_auth_v1)
+# Initialize Twitter API v2 Client
+client = tweepy.Client(
+    bearer_token=os.getenv('BEARER_TOKEN'),
+    consumer_key=os.getenv('API_KEY'),
+    consumer_secret=os.getenv('API_SECRET'),
+    access_token=os.getenv('ACCESS_TOKEN'),
+    access_token_secret=os.getenv('ACCESS_TOKEN_SECRET')
+)
 
-        # Configuration
-        self.posting_times = ["09:00", "12:00", "15:00"]  # 24-hour format
-        self.content_themes = {
-            "tech news": 0.3,
-            "AI developments": 0.3,
-            "coding tips": 0.2,
-            "fun tech facts": 0.2
-        }
+# List of motivational posts
+posts = [
+    "🌅 Start your day with a positive mindset! #Motivation",
+    "💪 Move forward no matter the hardships! #NeverGiveUp",
+    "🤔 Take time for reflection today. #Reflection",
+    "🚀 Keep going! Your breakthrough is coming! #Persistence",
+    "✨ Don't give up on your dreams! #Dreams",
+    "🔥 Consistency beats perfection! #Progress",
+    "🎯 Focus on progress, not perfection! #Growth",
+    "🌱 Growth happens outside your comfort zone! #Challenge",
+    "💡 Your potential is limitless! #Potential",
+    "🏆 Celebrate small wins! #Gratitude"
+]
 
-    def generate_tweet(self, theme: str) -> str:
-        """Generate tweet content using OpenAI"""
-        prompt = f"""
-        Create a engaging tweet about {theme} for a tech-savvy audience.
-        - Maximum 280 characters
-        - Include 1-2 relevant hashtags
-        - Use an informal but professional tone
-        - Add emoji if appropriate
-        """
-        
-        response = self.openai_client.chat.completions.create(
-           model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You're a social media manager for a tech company."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=150
-        )
-        return response.choices[0].message.content.strip()
+def post_tweet():
+    """Post a random tweet with timestamp"""
+    try:
+        tweet_text = f"{random.choice(posts)} | {datetime.now().strftime('%H:%M')}"
+        response = client.create_tweet(text=tweet_text)
+        print(f"Tweeted: {tweet_text}")
+        print(f"   Tweet ID: {response.data['id']}")
+    except tweepy.TweepyException as e:
+        print(f"Failed to post: {e}")
 
-    def post_tweet(self, text: str, image_path: str = None) -> bool:
-        """Post text + optional image to Twitter"""
-        try:
-            if image_path:
-                # Upload image
-                media = self.twitter_api_v1.media_upload(filename=image_path)
-                self.twitter_client.create_tweet(text=text, media_ids=[media.media_id])
-            else:
-                self.twitter_client.create_tweet(text=text)
-            print(f"Posted at {datetime.now()}: {text[:50]}...")
-            return True
-        except Exception as e:
-            print(f"Error posting tweet: {e}")
-            return False
+# Verify authentication
+try:
+    print("...Testing authentication...")
+    test_response = client.create_tweet(text="Authentication test tweet - will be deleted")
+    client.delete_tweet(test_response.data['id'])
+    print("Authentication successful!")
+except Exception as e:
+    print(f"Auth failed: {e}")
+    exit()
 
-    def select_theme(self) -> str:
-        """Randomly select content theme based on weights"""
-        import random
-        return random.choices(
-            list(self.content_themes.keys()),
-            weights=list(self.content_themes.values()),
-            k=1
-        )[0]
+# Immediate first tweet
+print("\n...Posting first tweet now...")
+post_tweet()
 
-    def run_scheduled_posts(self):
-        """Schedule and run automated posting"""
-        for post_time in self.posting_times:
-            schedule.every().day.at(post_time).do(self.post_new_tweet)
+# Schedule future tweets
+schedule.every().day.at("09:00").do(post_tweet)  # 9 AM
+schedule.every().day.at("17:30").do(post_tweet)  # 5:30 PM
+schedule.every().day.at("20:00").do(post_tweet)  # 8 PM
 
-        print(f"Bot started. Will post at {', '.join(self.posting_times)}")
-        while True:
-            schedule.run_pending()
-            time.sleep(60)
+print("\n🤖 Twitter Bot Active (API v2)")
+print("Next scheduled tweets:")
+print("- 9:00 AM")
+print("- 5:30 PM")
+print("- 8:00 PM")
+print("Press Ctrl+C to stop")
 
-    def post_new_tweet(self):
-        """Generate and post one tweet"""
-        theme = self.select_theme()
-        tweet_text = self.generate_tweet(theme)
-        self.post_tweet(tweet_text)
-
-if __name__ == "__main__":
-    bot = TwitterAIBot()
-    
-    # For testing (post once immediately)
-    bot.post_new_tweet()
-    
-    # For production (scheduled posting)
-    # bot.run_scheduled_posts()
+# Main loop
+try:
+    while True:
+        #is there any job that is due
+        schedule.run_pending()
+        time.sleep(60)
+except KeyboardInterrupt:
+    print("\nBot stopped gracefully.")
